@@ -1,0 +1,3 @@
+public enum Action {
+		CONFLICT, NONE, UNIT_PROPAGATION, DECIDE, UNSAT, SAT;
+}
