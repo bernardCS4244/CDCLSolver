@@ -16,8 +16,8 @@ public class Parser {
 		numLiterals = 0;
 		numClauses = 0;
 	}
-	
-	public Parser parse(String inputFile) {		
+
+	public Parser parse(String inputFile) {
 		try (BufferedReader br = new BufferedReader(new FileReader(inputFile))) {
 			while ((line = br.readLine()) != null) {
 				if (line.length() > 0 && line.charAt(0) == 'p') {
@@ -36,11 +36,11 @@ public class Parser {
 		}
 		return this;
 	}
-	
-	private void readFormula (BufferedReader br) {
+
+	private void readFormula(BufferedReader br) {
 		clauses = new ArrayList<>();
 		int counter = numClauses;
-		
+
 		try {
 			while (counter != 0) {
 				clauses.add(readClause(br.readLine()));
@@ -50,27 +50,27 @@ public class Parser {
 			e.printStackTrace();
 		}
 	}
-	
+
 	private Clause readClause(String clauseString) {
 		Clause clause = new Clause();
 		String[] literalArray = clauseString.split("\\s+");
-		for (int i=0; i<literalArray.length; i++) {
-			if(!literalArray[i].equals("")) {
+		for (int i = 0; i < literalArray.length; i++) {
+			if (!literalArray[i].equals("")) {
 				int literal = Integer.parseInt(literalArray[i]);
 				if (literal > 0) {
 					clause.add(new Literal(literal, true));
-				} else if (literal < 0){
-					clause.add(new Literal(literal*-1, false));
+				} else if (literal < 0) {
+					clause.add(new Literal(literal * -1, false));
 				}
 			}
 		}
 		return clause;
 	}
-	
+
 	public int getNumLiterals() {
 		return numLiterals;
 	}
-	
+
 	public List<Clause> getClauses() {
 		if (clauses == null) {
 			clauses = new ArrayList<Clause>();
