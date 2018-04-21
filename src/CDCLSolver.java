@@ -1,6 +1,5 @@
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
@@ -141,7 +140,6 @@ public class CDCLSolver {
 			}
 		}
 		// no unit propagation done
-		lastClauseUsed = -1;
 		return result;
 	}
 
@@ -169,6 +167,7 @@ public class CDCLSolver {
 
 	// conflict analysis and back tracking
 	private Action diagnose() {
+		//TODO change here
 		Clause learntClause = learnNewClauseWithUip();
 		if (learntClause.getDisjunctiveClause().size() == 0) {
 			return Action.UNSAT;
@@ -238,13 +237,15 @@ public class CDCLSolver {
 		return false;
 	}
 
-	// returns null if no UIP found
 	private Clause learnNewClauseWithUip() {
 		Clause newClause = new Clause();
-		Literal literal;
 		boolean[] isClauseChecked = new boolean[clausesMasterList.size()];
 
 		List<ImplicationDetails> outgoingEdges = retrieveOutgoingEdges(0);
+		if (outgoingEdges.size() <= 1) {
+			return newClause;
+		}
+		
 		for (ImplicationDetails details : outgoingEdges) {
 			int clauseUsed = details.getClauseUsed();
 			if (!isClauseChecked[clauseUsed]) {
@@ -253,11 +254,26 @@ public class CDCLSolver {
 			}
 			if (Utils.hasUip(newClause, literalTracker)) {
 				if (newClause.getDisjunctiveClause().size() > 0) {
+					//TODO to remove
+					if (newClause.getDisjunctiveClause().size() == 1) {
+						clausesMasterList.size();
+					}
 					clausesMasterList.add(newClause);
 				}
 				return newClause;
 			}
 		}
+		
+		//cannot find any UIP
+		ArrayList<Literal> toRemoveFromNewClause = new ArrayList<>();
+		for (Literal literal : newClause.getDisjunctiveClause()) {
+			if (!decisionTracker.get(literal.get())) {
+				toRemoveFromNewClause.add(literal);
+			}
+		}
+		newClause.getDisjunctiveClause().removeAll(toRemoveFromNewClause);
+		clausesMasterList.add(newClause);
+
 		return newClause;
 	}
 
@@ -326,22 +342,24 @@ public class CDCLSolver {
 		// finding the second highest level in learnt clause
 		int highestLevelLiteral = literalsInLearntClause.get(0).get(), secondHighestLevelLiteral = 0;
 		if (literalsInLearntClause.size() > 1) {
-			secondHighestLevelLiteral = literalsInLearntClause.get(1).get();
+			if (literalTracker[literalsInLearntClause.get(1).get()] != literalTracker[highestLevelLiteral]) {
+				secondHighestLevelLiteral = literalsInLearntClause.get(1).get();
+			}
 			if (literalTracker[secondHighestLevelLiteral] > literalTracker[highestLevelLiteral]) {
 				highestLevelLiteral = secondHighestLevelLiteral;
 				secondHighestLevelLiteral = literalsInLearntClause.get(0).get();
-			}
+			} 
 			backTrackToLevel = literalTracker[secondHighestLevelLiteral];
 		}
 
 		if (literalsInLearntClause.size() > 2) {
-			for (Literal literalInClause : literalsInLearntClause) {
-				if (literalTracker[literalInClause.get()] > literalTracker[secondHighestLevelLiteral]) {
-					if (literalTracker[literalInClause.get()] > literalTracker[highestLevelLiteral]) {
+			for(int i=2; i<literalsInLearntClause.size(); i++) {
+				if (literalTracker[literalsInLearntClause.get(i).get()] > literalTracker[secondHighestLevelLiteral]) {
+					if (literalTracker[literalsInLearntClause.get(i).get()] > literalTracker[highestLevelLiteral]) {
 						secondHighestLevelLiteral = highestLevelLiteral;
-						highestLevelLiteral = literalInClause.get();
-					} else {
-						secondHighestLevelLiteral = literalInClause.get();
+						highestLevelLiteral = literalsInLearntClause.get(i).get();
+					} else if (literalTracker[literalsInLearntClause.get(i).get()] != literalTracker[highestLevelLiteral] ) {
+						secondHighestLevelLiteral = literalsInLearntClause.get(i).get();
 					}
 				}
 			}
@@ -365,15 +383,17 @@ public class CDCLSolver {
 			}
 			// remove outgoing edges which are implied greater than or equal to
 			// backTrackLevel
+			int literal;
+			ArrayList<Integer> toRemove = new ArrayList<>();
+			ArrayList<Integer> toKeep = new ArrayList<>();
 			if (literalTracker[i] < backTrackToLevel) {
-				Iterator<Integer> iterator = implicationGraph.get(i).iterator();
-				while (iterator.hasNext()) {
-					int literal = iterator.next();
+				for (int j=0; j<implicationGraph.get(i).size(); j++) {
+					literal = implicationGraph.get(i).get(j);
 					if (literalTracker[literal] >= backTrackToLevel || literalTracker[literal] == -1) {
-						iterator.remove();
+						toRemove.add(literal);
 					}
 				}
-
+				implicationGraph.get(i).removeAll(toRemove);
 			}
 		}
 		// remove conflict
