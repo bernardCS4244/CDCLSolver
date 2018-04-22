@@ -3,6 +3,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
+import java.util.Random;
 
 public class CDCLSolver {
 	final int numLiterals;
@@ -13,26 +14,15 @@ public class CDCLSolver {
 	int[] literalTracker;
 	boolean[] visited;
 	int lastAssignedLiteral;
-	int lastClauseUsed; // keep track of the last clause used just before a
-						// conflict
+	int lastClauseUsed; 												// keep track of the last clause used just before a conflict
 
-	HashMap<Integer, Literal> solution; // literals with their assigned values
-	HashMap<Integer, Boolean> decisionTracker; // tracks which literal is
-												// assigned by decision
-	HashMap<Integer, List<Boolean>> decisionPool; // tracks what value have not
-													// been assigned by decision
-													// for each literal
-	HashMap<Integer, Literal> literalPool; // so that we don't have to keep
-											// creating new literal objects
+	HashMap<Integer, Literal> solution; 								// literals with their assigned values
+	HashMap<Integer, Boolean> decisionTracker; 							// tracks which literal is assigned by decision
+	HashMap<Integer, List<Boolean>> decisionPool; 						// tracks what value have not been assigned by decision for each literal
+	HashMap<Integer, Literal> literalPool; 								// so that we don't have to keep creating new literal objects
 	HashMap<Integer, Literal> solutionPool;
-	HashMap<Integer, List<Integer>> implicationGraph; // graph to track which
-														// literal is implied
-														// from which literal
-	HashMap<Integer, List<ImplicationDetails>> reverseImplicationGraph; // implication
-																		// graph
-																		// with
-																		// reversed
-																		// edges
+	HashMap<Integer, List<Integer>> implicationGraph; 					// graph to track which literal is implied from which literal
+	HashMap<Integer, List<ImplicationDetails>> reverseImplicationGraph; // implication graph with reversed edges
 	private Action result;
 
 	public CDCLSolver(int numLiterals, List<Clause> clauses) {
@@ -91,6 +81,8 @@ public class CDCLSolver {
 		result = Action.NONE;
 		while (!Utils.formulaSatisfied(numOriginalClauses, clausesMasterList, solution)) {
 			if (result == Action.UNSAT) {
+				long timeEnd = System.currentTimeMillis();
+				System.out.println("Time taken: " + (timeEnd - timeStart) + "ms");
 				return result;
 			}
 
@@ -106,6 +98,9 @@ public class CDCLSolver {
 			}
 
 			// check for unit clause
+			if (clausesMasterList.size() == 105) {
+				clausesMasterList.size();
+			}
 			result = unitPropagation();
 			switch (result) {
 			case NONE:
@@ -143,32 +138,16 @@ public class CDCLSolver {
 		return result;
 	}
 
-	// decide what value to assign to remaining unassigned literals
-	// TODO: currently a naive version of choosing the first unassigned literal
+
 	private Action decide() {
-		Literal currLit;
-		List<Boolean> decisionValues;
-		for (int i = 1; i <= numLiterals; i++) {
-			// checks if literal is not assigned and there are still values not
-			// used in decision making for that literal
-			decisionValues = decisionPool.get(i);
-			if (literalTracker[i] == -1 && !decisionValues.isEmpty()) {
-				currLit = literalPool.get(i);
-				// default value of new literal is assigned true
-				addToSolution(currLit, Action.DECIDE);
-				decisionTracker.put(currLit.get(), true);
-				return Action.NONE;
-			}
-		}
-		// all values have been used but still no satisfiable result found
-		System.out.println("no more decision values");
-		return Action.UNSAT;
+		//return randomVariableSelection();
+		return naiveVariableSelection();
 	}
 
 	// conflict analysis and back tracking
 	private Action diagnose() {
-		//TODO change here
 		Clause learntClause = learnNewClauseWithUip();
+		//Clause learntClause = learnNewClause();
 		if (learntClause.getDisjunctiveClause().size() == 0) {
 			return Action.UNSAT;
 		}
@@ -197,6 +176,50 @@ public class CDCLSolver {
 			// conflict!
 			return Action.CONFLICT;
 		}
+		return Action.NONE;
+	}
+	
+	// decide what value to assign to remaining unassigned literals
+	//currently a naive version of choosing the first unassigned literal
+	private Action naiveVariableSelection() {
+		Literal currLit;
+		List<Boolean> decisionValues;
+		for (int i = 1; i <= numLiterals; i++) {
+			// checks if literal is not assigned and there are still values not
+			// used in decision making for that literal
+			decisionValues = decisionPool.get(i);
+			if (literalTracker[i] == -1 && !decisionValues.isEmpty()) {
+				currLit = literalPool.get(i);
+				// default value of new literal is assigned true
+				addToSolution(currLit, Action.DECIDE);
+				decisionTracker.put(currLit.get(), true);
+				return Action.NONE;
+			}
+		}
+		// all values have been used but still no satisfiable result found
+		System.out.println("no more decision values");
+		return Action.UNSAT;
+	}
+	
+	//randomly chooses an unassigned literal and value
+	private Action randomVariableSelection() {
+		int nextLitNum = -1; 
+		while (nextLitNum == -1) {
+			nextLitNum = new Random().nextInt(numLiterals+1);
+			if (nextLitNum == 0 || literalTracker[nextLitNum] != -1) {
+				nextLitNum = -1;
+			}
+		}
+		Literal nextLiteral = literalPool.get(nextLitNum);
+		if (new Random().nextBoolean()) {
+			nextLiteral.setValue(true);
+		} else {
+			nextLiteral.setValue(false);
+		}
+		
+		addToSolution(nextLiteral, Action.DECIDE);
+		decisionTracker.put(nextLiteral.get(), nextLiteral.getValue());
+		
 		return Action.NONE;
 	}
 
@@ -236,7 +259,8 @@ public class CDCLSolver {
 		}
 		return false;
 	}
-
+	
+	//learn clause when the conflict clause has a UIP
 	private Clause learnNewClauseWithUip() {
 		Clause newClause = new Clause();
 		boolean[] isClauseChecked = new boolean[clausesMasterList.size()];
@@ -254,10 +278,6 @@ public class CDCLSolver {
 			}
 			if (Utils.hasUip(newClause, literalTracker)) {
 				if (newClause.getDisjunctiveClause().size() > 0) {
-					//TODO to remove
-					if (newClause.getDisjunctiveClause().size() == 1) {
-						clausesMasterList.size();
-					}
 					clausesMasterList.add(newClause);
 				}
 				return newClause;
@@ -272,7 +292,9 @@ public class CDCLSolver {
 			}
 		}
 		newClause.getDisjunctiveClause().removeAll(toRemoveFromNewClause);
-		clausesMasterList.add(newClause);
+		if (newClause.getDisjunctiveClause().size() > 0) {
+			clausesMasterList.add(newClause);
+		}
 
 		return newClause;
 	}
@@ -286,7 +308,7 @@ public class CDCLSolver {
 		while (!queue.isEmpty()) {
 			currentEdges = reverseImplicationGraph.get(queue.remove());
 			for (ImplicationDetails edge : currentEdges) {
-				if (!visited[edge.getLiteralImplied()]) {
+				if (!visited[edge.getLiteralImplied()] && literalTracker[edge.getLiteralImplied()] >= decisionLevel) {
 					queue.add(edge.getLiteralImplied());
 					visited[edge.getLiteralImplied()] = true;
 				}
