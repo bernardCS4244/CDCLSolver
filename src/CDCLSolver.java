@@ -6,20 +6,28 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
 import java.util.Random;
-import java.util.Stack;
 
 public class CDCLSolver {
+	public static enum DecisionHeuristicType {
+		RANDOM, DYNAMIC, NAIVE;
+	}
+	
+	public static enum ConflictAnalysisType {
+		STANDARD, UIP
+	}
 
 	final int numLiterals;
 	final int numOriginalClauses;
 	final List<Clause> clausesMasterList;
+	final DecisionHeuristicType dType;
+	final ConflictAnalysisType cType;
 
 	int decisionLevel;
 	int[] literalTracker;
 	boolean[] visited;
 	int pickBranchingCounter;
 	int lastAssignedLiteral;
-	int lastClauseUsed; 									// keep track of the last clause used just before a conflict
+	int lastClauseUsed; // keep track of the last clause used just before a conflict
 
 	HashMap<Integer, Literal> solution; 								// literals with their assigned values
 	HashMap<Integer, Boolean> decisionTracker; 							// tracks which literal is assigned by decision
@@ -33,10 +41,12 @@ public class CDCLSolver {
 	List<ConflictClause> conflictClauseStack;
 	private Action result;
 
-	public CDCLSolver(int numLiterals, List<Clause> clauses) {
+	public CDCLSolver(int numLiterals, List<Clause> clauses, DecisionHeuristicType dType, ConflictAnalysisType cType) {
 		this.numLiterals = numLiterals;
 		this.numOriginalClauses = clauses.size();
 		this.clausesMasterList = clauses;
+		this.cType = cType;
+		this.dType = dType;
 
 		System.out.println(numLiterals);
 		System.out.println(numOriginalClauses);
@@ -58,6 +68,7 @@ public class CDCLSolver {
 		implicationGraph = new HashMap<Integer, List<Integer>>();
 		reverseImplicationGraph = new HashMap<Integer, List<ImplicationDetails>>();
 		
+		
 		/*********************************************************
 		 * Sorting of data structures used in decision heuristics
 		 *********************************************************/
@@ -66,7 +77,7 @@ public class CDCLSolver {
 			@Override
 			public int compare(VariableCounter o1, VariableCounter o2) {
 				if (o1.getTotal() == o2.getTotal()) {
-					return new Random().nextInt(1);
+					return new Random().nextInt(2);
 				} else {
 					return (int)(o2.getTotal()-o1.getTotal());
 				}
@@ -78,7 +89,7 @@ public class CDCLSolver {
 			@Override
 			public int compare(Literal o1, Literal o2) {
 				if (o1.getCount() == o2.getCount()) {
-					return new Random().nextInt(1);
+					return new Random().nextInt(2);
 				} else {
 					return o2.getCount() - o1.getCount();
 				}
@@ -95,7 +106,7 @@ public class CDCLSolver {
 				} else if (o1.getTimeAdded() - o2.getTimeAdded() > 0) {
 					return -1;
 				} else {
-					return new Random().nextInt(1);
+					return new Random().nextInt(2);
 				}
 			}
 		});
@@ -191,9 +202,15 @@ public class CDCLSolver {
 
 	private Action decide() {
 		pickBranchingCounter++;
-		//return randomVariableSelection();
-		//return naiveVariableSelection();
-		return dynamicVariableSelection();
+		switch (dType) {
+			case DYNAMIC:
+				return dynamicVariableSelection();
+			case RANDOM:
+				return randomVariableSelection();
+			case NAIVE:
+				return naiveVariableSelection();
+		}
+		return Action.NONE;
 	}
 
 	// conflict analysis and back tracking
@@ -201,14 +218,19 @@ public class CDCLSolver {
 		if (decisionLevel == 0) {
 			return Action.UNSAT;
 		}
+		Clause learntClause = null;
+		switch (cType) {
+			case STANDARD:
+				learntClause = learnNewClause();
+				break;	
+			case UIP:
+				learntClause = learnNewClauseWithUip();
+				break;
+		}
 		
-		Clause learntClause = learnNewClauseWithUip();
-//		Clause learntClause = learnNewClause();
-//		if (learntClause.getDisjunctiveClause().size() == 0) {
-//			return Action.UNSAT;
-//		}
-		
-		
+		/*********************************************************
+		 * Debugging purpose
+		 *********************************************************/
 		//TODO
 //		System.out.print("Learn clause: ");
 //		for(Literal literal : learntClause.getDisjunctiveClause()) {
@@ -220,9 +242,8 @@ public class CDCLSolver {
 //			System.out.print(literal.get() + " ");
 //		}
 //		System.out.println("");
-		
+		/**********************************************************/
 
-		
 		backTrack(learntClause);
 		return Action.NONE;
 	}
@@ -268,8 +289,6 @@ public class CDCLSolver {
 				return Action.NONE;
 			}
 		}
-		// all values have been used but still no satisfiable result found
-		System.out.println("no more decision values");
 		return Action.UNSAT;
 	}
 	
@@ -305,6 +324,9 @@ public class CDCLSolver {
 		}
 		nextLiteral = chooseNextLiteralDynamically(null);
 		if (nextLiteral != null) {
+			/*********************************************************
+			 * Debugging purpose
+			 *********************************************************/
 			//TODO
 //			int level = decisionLevel + 1;
 //			System.out.print("DECIDE level " + level + ": ");
@@ -314,6 +336,7 @@ public class CDCLSolver {
 //				System.out.print("+");
 //			}
 //			System.out.println(nextLiteral.get() + " ");
+			/**********************************************************/
 			
 			addToSolution(nextLiteral, Action.DECIDE);
 			decisionTracker.put(nextLiteral.get(), nextLiteral.getValue());
@@ -351,7 +374,10 @@ public class CDCLSolver {
 				}
 			}
 			if (numLit == 0 && !Utils.isClauseTrue(listOfLit, literalTracker, solution)) {
-				//TODO:
+				/*********************************************************
+				 * Debugging purpose
+				 *********************************************************/
+				//TODO: 
 //				System.out.print("Conflict Clause: " + i + " = ");
 //				for(Literal literal : clausesMasterList.get(i).getDisjunctiveClause()) {
 //					if (!literal.getValue()){
@@ -362,6 +388,8 @@ public class CDCLSolver {
 //					System.out.print(literal.get() + " ");
 //				}
 //				System.out.println("");
+				/**********************************************************/
+				
 				addToImplicationGraph(i, Action.CONFLICT);
 				increaseCounters(clausesMasterList.get(i));
 				return true;
@@ -432,6 +460,17 @@ public class CDCLSolver {
 			}
 			outgoingEdges.addAll(currentEdges);
 		}
+		Collections.sort(outgoingEdges, new Comparator<ImplicationDetails>(){
+			@Override
+			public int compare(ImplicationDetails o1, ImplicationDetails o2) {
+				if (o1.getTimeImplied() - o2.getTimeImplied() < 0) {
+					return 1;
+				} else if (o1.getTimeImplied() - o2.getTimeImplied() > 0) {
+					return -1;
+				}
+				return 0;
+			}
+		});
 		return outgoingEdges;
 	}
 
@@ -445,15 +484,6 @@ public class CDCLSolver {
 			visited = new boolean[numLiterals + 1];
 			if (decisionTracker.get(i) != null && hasPathToConflict(i, visited)) {
 				literal = solution.get(i);
-
-				// //remove truth value from decision pool
-				// if (!decisionPool.get(i).isEmpty()) {
-				// for(int j=0; j<decisionPool.get(i).size(); j++) {
-				// if (decisionPool.get(i).get(j) == literal.getValue()) {
-				// decisionPool.get(i).remove(j);
-				// }
-				// }
-				// }
 
 				// set the literal value in the new clause the complement of the
 				// current assignment
@@ -475,7 +505,7 @@ public class CDCLSolver {
 	}
 
 	private void backTrack(Clause learntClause) {
-		
+		assert learntClause != null;
 		
 		List<Literal> literalsInLearntClause = learntClause.getDisjunctiveClause();
 		int backTrackToLevel = 0;
@@ -555,15 +585,18 @@ public class CDCLSolver {
 				if (!implicationGraph.get(literal.get()).contains(lastAssignedLiteral)) {
 					implicationGraph.get(literal.get()).add(lastAssignedLiteral);
 					reverseImplicationGraph.get(lastAssignedLiteral)
-							.add(new ImplicationDetails(literal.get(), clauseIndex));
+							.add(new ImplicationDetails(literal.get(), clauseIndex, System.currentTimeMillis()));
 				}
 			} else if (type == Action.CONFLICT) {
 				if (!implicationGraph.get(literal.get()).contains(0)) {
 					implicationGraph.get(literal.get()).add(0);
-					reverseImplicationGraph.get(0).add(new ImplicationDetails(literal.get(), clauseIndex));
+					reverseImplicationGraph.get(0).add(new ImplicationDetails(literal.get(), clauseIndex, System.currentTimeMillis()));
 				}
 			}
 		}
+		/*********************************************************
+		 * Debugging purpose
+		 *********************************************************/
 		//TODO
 //		System.out.print("Implied Literal: "); 
 //		if(solution.get(lastAssignedLiteral).getValue()) {
@@ -581,6 +614,7 @@ public class CDCLSolver {
 //			System.out.print(literal.get() + " ");
 //		}
 //		System.out.println("");
+/**********************************************************/
 	}
 
 	private boolean hasPathToConflict(int literal, boolean[] visited) {
