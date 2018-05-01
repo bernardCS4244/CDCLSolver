@@ -25,7 +25,7 @@ public class Utils {
 		return false;
 	}
 
-	public static void printSolution(Action type, int numLiterals, HashMap<Integer, Literal> solution) {
+	public static void printSolution(Action type, int numLiterals, HashMap<Integer, Literal> solution, int counter) {
 		Literal literal = null;
 		for (int i = 1; i <= numLiterals; i++) {
 			literal = solution.get(i);
@@ -41,6 +41,8 @@ public class Utils {
 				}
 			}
 		}
+		System.out.println("");
+		System.out.print("PickBranching Variable counter " + counter);
 	}
 
 	public static Clause performResolution(Clause currClause, Clause incomingClause) {
@@ -77,22 +79,25 @@ public class Utils {
 		return resolutionClause;
 	}
 
-	public static boolean hasUip(Clause clause, int literalTracker[]) {
+	public static boolean hasUip(Clause clause, int literalTracker[], int currentLevel) {
 		List<Literal> literals = clause.getDisjunctiveClause();
 		int count;
 		for (int i = 0; i < literals.size(); i++) {
 			count = 0;
-			for (int j = i + 1; j < literals.size(); j++) {
-				count = literalTracker[literals.get(j).get()] < literalTracker[literals.get(i).get()] ? ++count : count;
-			}
+			if (literalTracker[i] == currentLevel) {
+				for (int j = i + 1; j < literals.size(); j++) {
+					count = literalTracker[literals.get(j).get()] < literalTracker[literals.get(i).get()] ? ++count : count;
+				}
 
-			for (int k = i - 1; k > -1; k--) {
-				count = literalTracker[literals.get(k).get()] < literalTracker[literals.get(i).get()] ? ++count : count;
-			}
+				for (int k = i - 1; k > -1; k--) {
+					count = literalTracker[literals.get(k).get()] < literalTracker[literals.get(i).get()] ? ++count : count;
+				}
 
-			if (count == literals.size() - 1) {
-				return true;
+				if (count == literals.size() - 1) {
+					return true;
+				}
 			}
+			
 		}
 		return false;
 	}

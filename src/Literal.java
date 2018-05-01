@@ -2,6 +2,7 @@
 public class Literal {
 	final int literal;
 	private boolean value;
+	private int counter;
 
 	public Literal(int literal, boolean value) {
 		this.literal = literal;
@@ -18,6 +19,14 @@ public class Literal {
 
 	public void setValue(boolean newValue) {
 		value = newValue;
+	}
+	
+	public void increaseCount() {
+		counter++;
+	}
+	
+	public int getCount() {
+		return counter;
 	}
 
 	@Override

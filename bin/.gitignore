@@ -6,3 +6,8 @@
 /Parser.class
 /SatSolver.class
 /Utils.class
+/VariableCounter.class
+/CDCLSolver$1.class
+/CDCLSolver$2.class
+/ConflictClause.class
+/CDCLSolver$3.class
